@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mind Reader Mania</title>
+<title>Mind Reader Mania v1.0</title>
 <style>
   :root {
     --bg: #fff4d6;
@@ -121,6 +121,7 @@
 /* ---------- Settings ---------- */
 const ROUNDS = 10;          // must be even so each player guesses the same number of times
 const COMPUTER_DELAY = 1400; // milliseconds the computer "thinks"
+const VERSION = "v1.0";      // shown in the title
 const POWERS_ON = false;     // special powers are switched off for now; set to true to bring them back
 
 /* ---------- Tastes (each side of a card has one) ---------- */
@@ -534,7 +535,7 @@ function label(i) {
 /* ---------- Shared pieces ---------- */
 function header() {
   return el("div", { class: "top" },
-    el("h1", {}, "Mind Reader Mania"),
+    el("h1", {}, "Mind Reader Mania " + VERSION),
     el("button", { class: "link", onclick: menu }, "Quit"));
 }
 function bar() {
@@ -596,7 +597,7 @@ function menu() {
   clearTimeout(timer);
   S = null;
   render(
-    el("div", { class: "top" }, el("h1", {}, "Mind Reader Mania")),
+    el("div", { class: "top" }, el("h1", {}, "Mind Reader Mania " + VERSION)),
     el("p", { class: "info" },
       "One player picks a side of a Would You Rather card in secret. The other player guesses the pick. " +
       "A right guess gets 1 point. After " + ROUNDS + " rounds, the player with the most points wins."),
