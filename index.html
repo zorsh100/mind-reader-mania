@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mind Reader Mania v1.1</title>
+<title>Mind Reader Mania v1.2</title>
 <style>
   :root {
     --bg: #fff4d6;
@@ -139,8 +139,11 @@
 /* ---------- Settings ---------- */
 const ROUNDS = 10;          // must be even so each player guesses the same number of times
 const COMPUTER_DELAY = 1400; // milliseconds the computer "thinks"
-const VERSION = "v1.1";      // shown in the title
-const POWERS_ON = false;     // special powers are switched off for now; set to true to bring them back
+const VERSION = "v1.2";      // shown in the title
+const POWERS_ON = true;      // special powers in Mind Reader; set to false to switch them off
+// One power for each category. Characters in the same category share the power.
+const CATEGORY_POWER = { n: "safety", a: "double", s: "extra", f: "shield" };
+const POWER_USES = {};  // uses per game for a power, for example { extra: 2 }; a power not listed has 1 use
 
 /* ---------- Tastes (each side of a card has one) ---------- */
 const TAGS = {
@@ -568,12 +571,14 @@ function cardPic(c) {
 function P(i) { return S.players[i]; }
 function other(i) { return 1 - i; }
 function powerKey(i) {
-  const k = P(i).char.power;
-  return k === "copy" ? P(other(i)).char.power : k;
+  return charPower(P(i).char);
 }
-function canUse(i, phase) { return POWERS_ON && !P(i).used && S.frozen !== i && POWERS[powerKey(i)].when === phase; }
+function charPower(c) { return CATEGORY_POWER[c.taste]; }
+function powerUses(k) { return POWER_USES[k] || 1; }
+function usesText(k) { const n = powerUses(k); return n === 1 ? "One time per game." : n + " times per game."; }
+function canUse(i, phase) { return POWERS_ON && P(i).left > 0 && S.frozen !== i && POWERS[powerKey(i)].when === phase; }
 function usePower(i) {
-  P(i).used = true;
+  P(i).left--;
   S.armed[i] = powerKey(i);
   if (S.armed[i] === "newcard") S.card = nextCard();
   if (S.armed[i] === "hotstreak") P(i).hot = true;
@@ -607,14 +612,14 @@ function bar() {
   return el("div", { class: "bar" }, [0, 1].map(i => {
     const p = P(i);
     const role = S.picker === i ? "picking" : "guessing";
-    const pw = POWERS[p.char.power];
+    const pw = POWERS[charPower(p.char)];
     return el("div", { class: "chip" },
       pic(p.char),
       el("div", {},
         el("b", {}, p.char.name), el("span", { class: "role" }, role),
         el("div", { class: "small" }, label(i) + " · loves " + TAGS[p.char.taste].icon),
         POWERS_ON ? el("div", { class: "small" }, pw.icon + " " + pw.name + ": " +
-          (S.frozen === i ? "frozen ❄️" : p.hot ? "on 🔥" : p.used ? "used" : "ready")) : null),
+          (S.frozen === i ? "frozen ❄️" : p.hot ? "on 🔥" : p.left > 0 ? "ready" + (powerUses(charPower(p.char)) > 1 ? " (" + p.left + " left)" : "") : "used")) : null),
       el("div", { class: "score" }, p.score));
   }));
 }
@@ -648,10 +653,10 @@ function powerArea(i, phase, rerender) {
   if (!canUse(i, phase)) return null;
   const k = powerKey(i);
   const pw = POWERS[k];
-  const copied = P(i).char.power === "copy" ? " (copied with Copycat)" : "";
+  const copied = "";
   return el("button", { class: "powerbtn", onclick: () => { usePower(i); rerender(); } },
     el("b", {}, pw.icon + " Use your power: " + pw.name + copied), el("br"),
-    el("span", { class: "small" }, pw.text + " You can use it one time."));
+    el("span", { class: "small" }, pw.text + " " + (P(i).left > 1 ? "You have " + P(i).left + " left." : "You can use it one more time.")));
 }
 function legend() {
   return el("div", { class: "legend" }, Object.values(TAGS).map(t => el("span", {}, t.icon + " " + t.name)));
@@ -696,7 +701,7 @@ function charScreen() {
     el("h2", {}, title),
     el("div", { class: "roster" }, CHARS.map(c => {
       const taken = S.chosen.includes(c);
-      const pw = POWERS[c.power];
+      const pw = POWERS[charPower(c)];
       return el(taken ? "div" : "button", { class: "char" + (taken ? " taken" : ""), onclick: taken ? null : () => choose(c) },
         cardPic(c),
         el("div", { class: "cname" }, c.name),
@@ -707,9 +712,9 @@ function charScreen() {
         el("p", { class: "fact" }, el("b", {}, "Lives in: "), c.from),
         el("p", { class: "fact" }, el("b", {}, "Favorite thing: "), c.favorite),
         el("p", { class: "fact" }, el("b", {}, S.game === "fill" ? "When judging: " : "Guessing tip: "), c.tip),
-        POWERS_ON ? el("div", { class: "power" },
+        POWERS_ON && S.game !== "fill" ? el("div", { class: "power" },
           el("div", {}, "Special power: " + pw.icon + " " + pw.name),
-          el("div", { class: "powertext" }, pw.text + " One time per game.")) : null,
+          el("div", { class: "powertext" }, pw.text + " " + usesText(charPower(c)))) : null,
         taken ? el("div", { class: "small center" }, "Taken") : el("div", { class: "pick" }, "Pick " + c.name));
     })),
     S.game === "fill" ? fillRules() : rulesBox()
@@ -723,7 +728,7 @@ function rulesBox() {
       el("li", {}, "A right guess gets 1 point."),
       el("li", {}, "Players take turns. After " + ROUNDS + " rounds, the player with the most points wins."),
       el("li", {}, "Each character loves one kind of choice. Use that to make better guesses!"),
-      POWERS_ON ? el("li", {}, "Each character has one special power. You can use it one time per game. Read it on the character's card.") : null));
+      POWERS_ON ? el("li", {}, "Each character has a special power. Characters in the same category have the same power. Read it on the character's card.") : null));
 }
 function choose(c) {
   if (S.game === "fill") { fillChoose(c); return; }
@@ -750,7 +755,7 @@ function startGame() {
   const chosen = S.chosen;
   S = {
     mode: S.mode,
-    players: chosen.map((c, i) => ({ char: c, score: 0, used: false, human: S.mode === 2 || i === 0 })),
+    players: chosen.map((c, i) => ({ char: c, score: 0, left: powerUses(charPower(c)), human: S.mode === 2 || i === 0 })),
     deck: shuffle(CARDS),
     round: 0, total: ROUNDS, picker: 1, repeat: false,
     memory: {}, frozen: null, frozenNext: null
